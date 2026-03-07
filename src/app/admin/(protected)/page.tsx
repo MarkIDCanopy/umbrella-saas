@@ -1,0 +1,6 @@
+// src/app/admin/(protected)/page.tsx
+import { redirect } from "next/navigation";
+
+export default function AdminIndexPage() {
+  redirect("/admin/dashboard");
+}
