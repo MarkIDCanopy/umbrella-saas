@@ -12,6 +12,12 @@ import {
   extractOtpProviderError,
   type OtpMethod,
 } from "@/lib/services/mappers/otpVerification";
+import {
+  cleanEmail,
+  normalizePhoneNumberForProvider,
+  cleanExternalId,
+  cleanOtpCode,
+} from "@/lib/input-safeguards"; // adjust path if needed
 
 const SERVICE_KEY = "otp-verification";
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -22,13 +28,9 @@ function toFiniteInt(v: any): number | null {
   return Math.trunc(n);
 }
 
-function normalizePhoneNumber(value: string) {
-  return value.replace(/[^\d]/g, "");
-}
-
 function maskOtp(value?: string | null) {
   if (!value) return undefined;
-  return "*".repeat(Math.min(value.length, 6));
+  return "*".repeat(Math.min(value.length, 10));
 }
 
 async function readJsonOrText(res: Response): Promise<any> {
@@ -61,6 +63,7 @@ export async function POST(req: Request) {
   };
 
   const method = raw.method === "sms" || raw.method === "email" ? raw.method : null;
+
   if (!method) {
     return NextResponse.json(
       { error: 'Invalid payload: expected method to be "sms" or "email"' },
@@ -68,12 +71,18 @@ export async function POST(req: Request) {
     );
   }
 
+  const operation =
+    method === "sms" ? "sms-verification" : "email-verification";
+
   const phoneNumber =
     typeof raw.phoneNumber === "string"
-      ? normalizePhoneNumber(raw.phoneNumber.trim())
+      ? normalizePhoneNumberForProvider(raw.phoneNumber)
       : "";
 
-  const email = typeof raw.email === "string" ? raw.email.trim() : "";
+  const email =
+    typeof raw.email === "string"
+      ? cleanEmail(raw.email)
+      : "";
 
   if (method === "sms" && !phoneNumber) {
     return NextResponse.json(
@@ -91,20 +100,22 @@ export async function POST(req: Request) {
 
   let securityFactor: string | undefined;
   if (typeof raw.securityFactor === "string" && raw.securityFactor.trim()) {
-    const trimmed = raw.securityFactor.trim();
-    if (!/^\d{3,10}$/.test(trimmed)) {
+    const cleanedOtp = cleanOtpCode(raw.securityFactor);
+    if (!/^\d{3,10}$/.test(cleanedOtp)) {
       return NextResponse.json(
         { error: "securityFactor must be numeric and 3-10 digits long" },
         { status: 400 }
       );
     }
-    securityFactor = trimmed;
+    securityFactor = cleanedOtp;
   }
 
-  const externalId =
+  const externalIdRaw =
     typeof raw.externalId === "string" && raw.externalId.trim()
-      ? raw.externalId.trim().slice(0, 100)
-      : undefined;
+      ? cleanExternalId(raw.externalId)
+      : "";
+
+  const externalId = externalIdRaw || undefined;
 
   const payload = {
     method,
@@ -114,7 +125,7 @@ export async function POST(req: Request) {
   };
 
   const requestForStorage = {
-    operation: "start-verification",
+    operation,
     ...payload,
     ...(securityFactor ? { securityFactor: maskOtp(securityFactor) } : {}),
   };

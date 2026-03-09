@@ -10,6 +10,11 @@ import type {
   KybAdvancedSearchPayload,
   KybIncludeOptions,
 } from "@/lib/services/mappers/kyb";
+import {
+  cleanBillingName,
+  cleanCountry,
+  cleanReferenceId,
+} from "@/lib/input-safeguards";
 
 type SearchProps = {
   mode: EnvironmentMode;
@@ -49,9 +54,13 @@ export function CompanySearchInputPanel({
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
+
+    const cleanedName = cleanBillingName(name);
+    const cleanedCountry = cleanCountry(country);
+
     onSubmit({
-      name: name.trim(),
-      country: country.trim() ? country.trim().toUpperCase() : undefined,
+      name: cleanedName,
+      country: cleanedCountry || undefined,
     });
   }
 
@@ -70,12 +79,12 @@ export function CompanySearchInputPanel({
         <Input
           placeholder="Siemens"
           value={name}
-          onChange={(e) => setName(e.target.value)}
+          onChange={(e) => setName(cleanBillingName(e.target.value))}
         />
         <Input
           placeholder="Country code (optional, e.g. DE)"
           value={country}
-          onChange={(e) => setCountry(e.target.value)}
+          onChange={(e) => setCountry(cleanCountry(e.target.value))}
           maxLength={2}
         />
       </div>
@@ -106,11 +115,11 @@ export function AdvancedSearchInputPanel({
   const [include, setInclude] = useState<KybIncludeOptions>(DEFAULT_INCLUDE);
 
   useEffect(() => {
-    setTransactionId(initialTransactionId ?? defaultTransactionId);
+    setTransactionId(cleanReferenceId(initialTransactionId ?? defaultTransactionId));
   }, [initialTransactionId, defaultTransactionId]);
 
   useEffect(() => {
-    setCompanyId(initialCompanyId ?? defaultCompanyId);
+    setCompanyId(cleanReferenceId(initialCompanyId ?? defaultCompanyId));
   }, [initialCompanyId, defaultCompanyId]);
 
   useEffect(() => {
@@ -123,9 +132,10 @@ export function AdvancedSearchInputPanel({
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
+
     onSubmit({
-      transactionId: transactionId.trim(),
-      companyId: companyId.trim(),
+      transactionId: cleanReferenceId(transactionId),
+      companyId: cleanReferenceId(companyId),
       include,
     });
   }
@@ -145,12 +155,12 @@ export function AdvancedSearchInputPanel({
         <Input
           placeholder="transactionId"
           value={transactionId}
-          onChange={(e) => setTransactionId(e.target.value)}
+          onChange={(e) => setTransactionId(cleanReferenceId(e.target.value))}
         />
         <Input
           placeholder="companyId"
           value={companyId}
-          onChange={(e) => setCompanyId(e.target.value)}
+          onChange={(e) => setCompanyId(cleanReferenceId(e.target.value))}
         />
       </div>
 

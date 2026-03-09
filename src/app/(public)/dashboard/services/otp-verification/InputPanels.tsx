@@ -10,6 +10,11 @@ import type {
   OtpStartPayload,
   OtpMatchPayload,
 } from "@/lib/services/mappers/otpVerification";
+import {
+  cleanEmail,
+  cleanPhoneInput,
+  cleanOtpCode,
+} from "@/lib/input-safeguards"; 
 
 type StartProps = {
   mode: EnvironmentMode;
@@ -34,16 +39,14 @@ export function OtpStartInputPanel({
   loading,
 }: StartProps) {
   const [phoneNumber, setPhoneNumber] = useState(
-    mode === "test" ? "436501234567" : ""
+    mode === "test" ? "+436501234567" : ""
   );
-  const [email, setEmail] = useState(
-    mode === "test" ? "test@test.com" : ""
-  );
+  const [email, setEmail] = useState(mode === "test" ? "test@test.com" : "");
 
   useEffect(() => {
-    setPhoneNumber(mode === "test" ? "436501234567" : "");
-    setEmail(mode === "test" ? "test@test.com" : "");
-  }, [mode]);
+  setPhoneNumber(mode === "test" ? "+436501234567" : "");
+  setEmail(mode === "test" ? "test@test.com" : "");
+}, [mode, method]);
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -52,16 +55,17 @@ export function OtpStartInputPanel({
       method === "sms"
         ? {
             method,
-            phoneNumber: phoneNumber.trim(),
+            phoneNumber: cleanPhoneInput(phoneNumber),
           }
         : {
             method,
-            email: email.trim(),
+            email: cleanEmail(email),
           }
     );
   }
 
-  const currentValue = method === "sms" ? phoneNumber.trim() : email.trim();
+  const currentValue =
+    method === "sms" ? cleanPhoneInput(phoneNumber) : cleanEmail(email);
 
   return (
     <form onSubmit={submit} className="space-y-6 rounded-xl border bg-card p-6">
@@ -77,15 +81,15 @@ export function OtpStartInputPanel({
       <div className="space-y-3">
         {method === "sms" ? (
           <Input
-            placeholder="Phone number in international format, e.g. 436501234567"
+            placeholder="Phone number in international format, e.g. +436501234567"
             value={phoneNumber}
-            onChange={(e) => setPhoneNumber(e.target.value)}
+            onChange={(e) => setPhoneNumber(cleanPhoneInput(e.target.value))}
           />
         ) : (
           <Input
             placeholder="Email address"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) => setEmail(cleanEmail(e.target.value))}
           />
         )}
       </div>
@@ -118,9 +122,11 @@ export function OtpMatchInputPanel({
 
     onSubmit({
       referenceId,
-      securityFactor: securityFactor.trim(),
+      securityFactor: cleanOtpCode(securityFactor),
     });
   }
+
+  const cleanValue = cleanOtpCode(securityFactor);
 
   return (
     <form onSubmit={submit} className="space-y-6 rounded-xl border bg-card p-6">
@@ -135,7 +141,7 @@ export function OtpMatchInputPanel({
         <Input
           placeholder="OTP code"
           value={securityFactor}
-          onChange={(e) => setSecurityFactor(e.target.value)}
+          onChange={(e) => setSecurityFactor(cleanOtpCode(e.target.value))}
           inputMode="numeric"
         />
 
@@ -146,11 +152,7 @@ export function OtpMatchInputPanel({
         )}
       </div>
 
-      <Button
-        type="submit"
-        className="w-full"
-        disabled={!securityFactor.trim() || loading}
-      >
+      <Button type="submit" className="w-full" disabled={!cleanValue || loading}>
         {loading ? "Checking…" : "Check"}
       </Button>
     </form>

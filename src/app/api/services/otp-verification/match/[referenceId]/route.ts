@@ -7,6 +7,10 @@ import {
   mapOtpMatchResponse,
   extractOtpProviderError,
 } from "@/lib/services/mappers/otpVerification";
+import {
+  cleanOtpCode,
+  cleanReferenceId,
+} from "@/lib/input-safeguards"; // adjust path if needed
 
 const SERVICE_KEY = "otp-verification";
 
@@ -18,7 +22,7 @@ function toFiniteInt(v: any): number | null {
 
 function maskOtp(value?: string | null) {
   if (!value) return undefined;
-  return "*".repeat(Math.min(value.length, 6));
+  return "*".repeat(Math.min(value.length, 10));
 }
 
 async function readJsonOrText(res: Response): Promise<any> {
@@ -45,7 +49,10 @@ export async function PATCH(
   const orgId = activeOrgId == null ? null : toFiniteInt(activeOrgId);
   const environment: "live" = "live";
 
-  const referenceId = decodeURIComponent(params.referenceId || "").trim();
+  const referenceId = cleanReferenceId(
+    decodeURIComponent(params.referenceId || "").trim()
+  );
+
   if (!referenceId) {
     return NextResponse.json(
       { error: "Missing referenceId in route params" },
@@ -58,7 +65,9 @@ export async function PATCH(
   };
 
   const securityFactor =
-    typeof raw.securityFactor === "string" ? raw.securityFactor.trim() : "";
+    typeof raw.securityFactor === "string"
+      ? cleanOtpCode(raw.securityFactor)
+      : "";
 
   if (!/^\d{3,10}$/.test(securityFactor)) {
     return NextResponse.json(
@@ -68,6 +77,7 @@ export async function PATCH(
   }
 
   const payload = { securityFactor };
+
   const requestForStorage = {
     operation: "match-verification",
     referenceId,

@@ -174,3 +174,11 @@ export function cleanCountryFlexible(value: string) {
     .toUpperCase()
     .slice(0, 3);
 }
+
+export function cleanOtpCode(value: string) {
+  return value.replace(/\D/g, "").slice(0, 10);
+}
+
+export function cleanReferenceId(value: string) {
+  return value.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 100);
+}

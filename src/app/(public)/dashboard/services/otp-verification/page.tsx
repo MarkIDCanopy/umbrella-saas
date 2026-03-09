@@ -6,9 +6,9 @@ import { ServiceHeader } from "@/components/service-layout/ServiceHeader";
 import { EnvironmentToggle } from "@/components/service-layout/EnvironmentToggle";
 import { useUser } from "@/context/UserContext";
 
+import { OtpMethodToggle } from "./OtpMethodToggle";
 import { OtpStartInputPanel, OtpMatchInputPanel } from "./InputPanels";
 import { OtpOutputPanel } from "./OutputPanel";
-import { OtpMethodToggle } from "./OtpMethodToggle";
 
 import type {
   OtpMethod,
@@ -41,24 +41,36 @@ export default function OtpVerificationPage() {
   const primaryActionClass =
     "mt-4 inline-flex items-center justify-center rounded-md bg-black px-4 py-2 text-sm font-medium text-white transition hover:bg-black/90";
 
-  useEffect(() => {
+  function resetOtpFlow() {
     setStartResponse(null);
     setMatchResponse(null);
     setStartRequest(null);
     setMatchRequest(null);
     setError(null);
     setIsSubmitting(false);
-    setMatchFormKey(0);
+    setMatchFormKey((v) => v + 1);
+  }
+
+  useEffect(() => {
+    resetOtpFlow();
   }, [environment]);
 
-  const currentCost = useMemo(() => 2, []);
+  function handleMethodChange(nextMethod: OtpMethod) {
+    if (nextMethod === method) return;
+    setMethod(nextMethod);
+    resetOtpFlow();
+  }
+
+  const currentCost = useMemo(() => {
+    return method === "sms" ? 2 : 1;
+  }, [method]);
 
   async function handleStart(payload: OtpStartPayload) {
     setError(null);
     setMatchResponse(null);
     setMatchRequest(null);
     setStartRequest({
-      operation: "start-verification",
+      operation: payload.method === "sms" ? "sms-verification" : "email-verification",
       ...payload,
     });
 
@@ -204,13 +216,7 @@ export default function OtpVerificationPage() {
   }
 
   function resetToInput() {
-    setError(null);
-    setIsSubmitting(false);
-    setStartResponse(null);
-    setMatchResponse(null);
-    setStartRequest(null);
-    setMatchRequest(null);
-    setMatchFormKey((v) => v + 1);
+    resetOtpFlow();
   }
 
   const referenceId = startResponse?.referenceId ?? "";
@@ -221,23 +227,27 @@ export default function OtpVerificationPage() {
         title="OTP Verification"
         description="Send one-time passcodes via SMS or email and verify the user-entered OTP."
         badge="OTP"
-        />
+      />
 
-        <EnvironmentToggle
+      <EnvironmentToggle
         mode={environment}
         setMode={setEnvironment}
         fromCost={currentCost}
         cost={currentCost}
-        />
+      />
 
-        <OtpMethodToggle method={method} setMethod={setMethod} />
+      <OtpMethodToggle method={method} setMethod={handleMethodChange} />
 
+      {!startResponse && (
         <OtpStartInputPanel
+        key={`${environment}-${method}`}
         mode={environment}
         method={method}
         onSubmit={handleStart}
         loading={isSubmitting}
         />
+      )}
+
       {startResponse && !matchResponse?.verified && (
         <OtpMatchInputPanel
           key={matchFormKey}
