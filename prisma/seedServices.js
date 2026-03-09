@@ -131,6 +131,20 @@ const SERVICES = [
     "KYB onboarding support",
   ],
 },
+
+{
+  key: "otp-verification",
+  name: "OTP Verification",
+  priceCredits: eurToCredits(2.0),
+  description:
+    "Send one-time passcodes via SMS or email and verify user-entered OTPs for authentication, onboarding, and fraud prevention flows.",
+  features: [
+    "SMS OTP delivery",
+    "Email OTP delivery",
+    "OTP match verification",
+    "Authentication support",
+  ],
+},
 ];
 
 async function main() {
