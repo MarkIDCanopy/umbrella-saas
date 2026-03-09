@@ -124,10 +124,7 @@ export default function AdminLoginForm() {
             </form>
           </CardContent>
 
-          <CardFooter className="flex justify-between text-xs text-slate-500">
-            <Link href="/forgot-password" className="hover:underline">
-              Forgot password?
-            </Link>
+          <CardFooter className="flex justify-center text-xs text-slate-500">
             <span>Internal access only</span>
           </CardFooter>
         </Card>

@@ -44,3 +44,51 @@ export type AdminUserListItem = {
     organizationMembers: number;
   };
 };
+
+export type AdminOrganizationListItem = {
+  id: number;
+  orgUid: string;
+  name: string;
+  teamEnabled: boolean;
+  billingEmail: string | null;
+  billingCountry: string | null;
+  createdAt: string;
+  updatedAt: string;
+  lastTransactionAt: string | null;
+
+  createdByUser: {
+    id: number;
+    email: string;
+    fullName: string | null;
+  };
+
+  creditWallet: {
+    id: number;
+    balance: number;
+    billingProfile: {
+      billingType: string;
+      email: string;
+      fullName: string | null;
+      companyName: string | null;
+      country: string;
+    } | null;
+  } | null;
+
+  members: Array<{
+    id: number;
+    email: string;
+    name: string | null;
+    role: Role;
+    status: string;
+    user: {
+      id: number;
+      email: string;
+      fullName: string | null;
+    } | null;
+  }>;
+
+  _count: {
+    members: number;
+    transactions: number;
+  };
+};
