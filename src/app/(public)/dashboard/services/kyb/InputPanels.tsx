@@ -21,6 +21,8 @@ type AdvancedProps = {
   mode: EnvironmentMode;
   onSubmit: (payload: KybAdvancedSearchPayload) => void;
   loading?: boolean;
+  initialTransactionId?: string;
+  initialCompanyId?: string;
 };
 
 const DEFAULT_INCLUDE: KybIncludeOptions = {
@@ -89,18 +91,29 @@ export function AdvancedSearchInputPanel({
   mode,
   onSubmit,
   loading,
+  initialTransactionId,
+  initialCompanyId,
 }: AdvancedProps) {
+  const defaultTransactionId = mode === "test" ? "TEST-KYB-TX-123" : "";
+  const defaultCompanyId = mode === "test" ? "TEST-COMPANY-001" : "";
+
   const [transactionId, setTransactionId] = useState(
-    mode === "test" ? "TEST-KYB-TX-123" : ""
+    initialTransactionId ?? defaultTransactionId
   );
   const [companyId, setCompanyId] = useState(
-    mode === "test" ? "TEST-COMPANY-001" : ""
+    initialCompanyId ?? defaultCompanyId
   );
   const [include, setInclude] = useState<KybIncludeOptions>(DEFAULT_INCLUDE);
 
   useEffect(() => {
-    setTransactionId(mode === "test" ? "TEST-KYB-TX-123" : "");
-    setCompanyId(mode === "test" ? "TEST-COMPANY-001" : "");
+    setTransactionId(initialTransactionId ?? defaultTransactionId);
+  }, [initialTransactionId, defaultTransactionId]);
+
+  useEffect(() => {
+    setCompanyId(initialCompanyId ?? defaultCompanyId);
+  }, [initialCompanyId, defaultCompanyId]);
+
+  useEffect(() => {
     setInclude(DEFAULT_INCLUDE);
   }, [mode]);
 

@@ -15,9 +15,10 @@ import { KybOutputPanel } from "./OutputPanel";
 
 import type {
   KybMode,
-  KybResponse,
   KybCompanySearchPayload,
   KybAdvancedSearchPayload,
+  KybSearchResponse,
+  KybAdvancedResponse,
 } from "@/lib/services/mappers/kyb";
 
 async function readJsonOrNull(res: Response) {
@@ -28,10 +29,21 @@ export default function KybPage() {
   const [environment, setEnvironment] = useState<"test" | "live">("live");
   const [mode, setMode] = useState<KybMode>("company-search");
 
-  const [response, setResponse] = useState<KybResponse | null>(null);
+  const [companySearchResponse, setCompanySearchResponse] =
+    useState<KybSearchResponse | null>(null);
+  const [advancedResponse, setAdvancedResponse] =
+    useState<KybAdvancedResponse | null>(null);
+
+  const [companySearchRequest, setCompanySearchRequest] = useState<any | null>(null);
+  const [advancedRequest, setAdvancedRequest] = useState<any | null>(null);
+
+  const [advancedPrefill, setAdvancedPrefill] = useState({
+    transactionId: "",
+    companyId: "",
+  });
+
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [lastRequest, setLastRequest] = useState<any | null>(null);
 
   const { refreshCredits } = useUser();
 
@@ -39,32 +51,44 @@ export default function KybPage() {
     "mt-4 inline-flex items-center justify-center rounded-md bg-black px-4 py-2 text-sm font-medium text-white transition hover:bg-black/90";
 
   useEffect(() => {
-    setResponse(null);
+    setCompanySearchResponse(null);
+    setAdvancedResponse(null);
+    setCompanySearchRequest(null);
+    setAdvancedRequest(null);
     setError(null);
     setIsSubmitting(false);
-    setLastRequest(null);
-  }, [environment, mode]);
+    setAdvancedPrefill({
+      transactionId: environment === "test" ? "TEST-KYB-TX-123" : "",
+      companyId: environment === "test" ? "TEST-COMPANY-001" : "",
+    });
+  }, [environment]);
 
   const currentCost = useMemo(() => {
-    // adjust these to your actual pricing
     return mode === "company-search" ? 2 : 2;
   }, [mode]);
 
+  const visibleResponse =
+    mode === "company-search" ? companySearchResponse : advancedResponse;
+
+  const visibleRequest =
+    mode === "company-search" ? companySearchRequest : advancedRequest;
+
   async function handleCompanySearch(payload: KybCompanySearchPayload) {
     setError(null);
-    setLastRequest({
+    setCompanySearchRequest({
       operation: "company-search",
       ...payload,
     });
 
     if (environment === "test") {
-      setResponse({
+      setCompanySearchResponse({
         kind: "company-search",
         status: true,
         transactionId: "TEST-KYB-TX-123",
         resultCount: 2,
         companies: [
           {
+            transactionId: "TEST-KYB-TX-123",
             companyId: "COMP-DE-001",
             name: "Siemens AG",
             country: "Germany",
@@ -77,6 +101,7 @@ export default function KybPage() {
             raw: {},
           },
           {
+            transactionId: "TEST-KYB-TX-123",
             companyId: "COMP-DE-002",
             name: "Siemens Healthineers AG",
             country: "Germany",
@@ -91,6 +116,9 @@ export default function KybPage() {
         ],
         raw: {},
       });
+
+      setAdvancedResponse(null);
+      setAdvancedRequest(null);
       return;
     }
 
@@ -108,7 +136,9 @@ export default function KybPage() {
         throw new Error(data?.error ?? data?.providerError ?? "Company search failed");
       }
 
-      setResponse(data);
+      setCompanySearchResponse(data);
+      setAdvancedResponse(null);
+      setAdvancedRequest(null);
       await refreshCredits();
     } catch (e: any) {
       setError(
@@ -121,13 +151,13 @@ export default function KybPage() {
 
   async function handleAdvancedSearch(payload: KybAdvancedSearchPayload) {
     setError(null);
-    setLastRequest({
+    setAdvancedRequest({
       operation: "advanced-search",
       ...payload,
     });
 
     if (environment === "test") {
-      setResponse({
+      setAdvancedResponse({
         kind: "advanced-search",
         status: true,
         transactionId: payload.transactionId,
@@ -180,7 +210,7 @@ export default function KybPage() {
         throw new Error(data?.error ?? data?.providerError ?? "Advanced search failed");
       }
 
-      setResponse(data);
+      setAdvancedResponse(data);
       await refreshCredits();
     } catch (e: any) {
       setError(
@@ -191,11 +221,38 @@ export default function KybPage() {
     }
   }
 
+  function handleProceedToAdvanced(args: {
+    transactionId: string;
+    companyId: string;
+  }) {
+    setAdvancedPrefill({
+      transactionId: args.transactionId,
+      companyId: args.companyId,
+    });
+    setAdvancedResponse(null);
+    setAdvancedRequest(null);
+    setError(null);
+    setMode("advanced-search");
+  }
+
   function resetToInput() {
-    setResponse(null);
     setError(null);
     setIsSubmitting(false);
-    setLastRequest(null);
+
+    if (mode === "company-search") {
+      setCompanySearchResponse(null);
+      setCompanySearchRequest(null);
+      setAdvancedResponse(null);
+      setAdvancedRequest(null);
+      setAdvancedPrefill({
+        transactionId: environment === "test" ? "TEST-KYB-TX-123" : "",
+        companyId: environment === "test" ? "TEST-COMPANY-001" : "",
+      });
+      return;
+    }
+
+    setAdvancedResponse(null);
+    setAdvancedRequest(null);
   }
 
   return (
@@ -215,7 +272,7 @@ export default function KybPage() {
 
       <KybModeToggle mode={mode} setMode={setMode} />
 
-      {!response && mode === "company-search" && (
+      {!visibleResponse && mode === "company-search" && (
         <CompanySearchInputPanel
           mode={environment}
           onSubmit={handleCompanySearch}
@@ -223,21 +280,24 @@ export default function KybPage() {
         />
       )}
 
-      {!response && mode === "advanced-search" && (
+      {!visibleResponse && mode === "advanced-search" && (
         <AdvancedSearchInputPanel
           mode={environment}
           onSubmit={handleAdvancedSearch}
           loading={isSubmitting}
+          initialTransactionId={advancedPrefill.transactionId}
+          initialCompanyId={advancedPrefill.companyId}
         />
       )}
 
-      {response && (
+      {visibleResponse && (
         <>
           <KybOutputPanel
             mode={environment}
-            response={response}
+            response={visibleResponse}
             error={error}
-            request={lastRequest}
+            request={visibleRequest}
+            onProceedToAdvanced={handleProceedToAdvanced}
           />
           <button onClick={resetToInput} className={primaryActionClass}>
             Run another request
@@ -245,7 +305,7 @@ export default function KybPage() {
         </>
       )}
 
-      {error && !response && (
+      {error && !visibleResponse && (
         <div className="rounded-md border bg-red-50 px-3 py-2 text-sm text-red-700">
           {error}
         </div>

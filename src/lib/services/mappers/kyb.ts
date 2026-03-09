@@ -22,6 +22,7 @@ export type KybAdvancedSearchPayload = {
 };
 
 export type KybSearchItem = {
+  transactionId: string | null;
   companyId: string | null;
   name: string | null;
   country: string | null;
@@ -91,33 +92,75 @@ function toFiniteNumber(value: any): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+function pickRegistrationNumber(identifiers: any): string | null {
+  if (!Array.isArray(identifiers)) return null;
+
+  const registrationIdentifier = identifiers.find(
+    (item: any) => item?.scheme === "REGISTRATION_NUMBER" && item?.value
+  );
+
+  if (registrationIdentifier?.value) return registrationIdentifier.value;
+
+  const firstWithValue = identifiers.find((item: any) => item?.value);
+  return firstWithValue?.value ?? null;
+}
+
+function hasAddressContent(address: any): boolean {
+  if (!address || typeof address !== "object") return false;
+  if (address.singleLine) return true;
+
+  const s = address.structured;
+  return Boolean(
+    s?.line1 || s?.line2 || s?.city || s?.postalCode || s?.region || s?.country
+  );
+}
+
 export function mapKybSearchResponse(raw: any): KybSearchResponse {
-  const data = raw?.data ?? raw ?? {};
+  const root = raw ?? {};
+  const data = root?.data ?? root ?? {};
 
   const companiesSource = firstArray(
+    Array.isArray(data) ? data : null,
     data?.companies,
     data?.results,
     data?.matches,
     data?.items,
-    raw?.companies,
-    raw?.results
+    root?.companies,
+    root?.results,
+    root?.matches
   );
 
   const companies: KybSearchItem[] = companiesSource.map((item: any) => ({
+    transactionId: firstNonEmpty(
+      item?.transactionId,
+      item?.searchTransactionId,
+      root?.transactionId
+    ),
     companyId: firstNonEmpty(
       item?.companyId,
       item?.id,
       item?.company?.companyId,
       item?.company?.id
     ),
-    name: firstNonEmpty(item?.name, item?.companyName, item?.company?.name),
+    name: firstNonEmpty(
+      item?.name,
+      item?.companyName,
+      item?.legalName,
+      item?.company?.name,
+      item?.company?.legalName
+    ),
     country: firstNonEmpty(
-      item?.country,
       item?.countryName,
+      item?.country,
       item?.address?.country,
       item?.company?.country
     ),
-    countryCode: firstNonEmpty(item?.countryCode, item?.countryIso2, item?.iso2),
+    countryCode: firstNonEmpty(
+      item?.countryCode,
+      item?.countryIso2,
+      item?.iso2,
+      item?.country
+    ),
     registrationNumber: firstNonEmpty(
       item?.registrationNumber,
       item?.companyNumber,
@@ -135,70 +178,146 @@ export function mapKybSearchResponse(raw: any): KybSearchResponse {
   }));
 
   const txId = firstNonEmpty<string>(
+    root?.transactionId,
     data?.transactionId,
-    raw?.transactionId,
-    data?.searchTransactionId
+    data?.searchTransactionId,
+    companies[0]?.transactionId
   );
 
   return {
     kind: "company-search",
-    status: Boolean(raw?.status ?? true),
+    status: Boolean(root?.status ?? true),
     transactionId: txId,
-    resultCount: toFiniteNumber(data?.count) ?? companies.length,
+    resultCount:
+      toFiniteNumber(root?.resultCount) ??
+      toFiniteNumber(data?.resultCount) ??
+      toFiniteNumber(data?.count) ??
+      companies.length,
     companies,
     raw,
   };
 }
 
 export function mapKybAdvancedResponse(raw: any): KybAdvancedResponse {
-  const data = raw?.data ?? raw ?? {};
-  const company = data?.company ?? data?.details ?? data?.profile ?? data ?? {};
+  const root = raw ?? {};
+  const data = root?.data ?? root ?? {};
+  const primary = Array.isArray(data) ? (data[0] ?? {}) : data;
+
+  const company =
+    primary?.company ??
+    data?.company ??
+    primary?.details ??
+    data?.details ??
+    primary?.profile ??
+    data?.profile ??
+    primary ??
+    {};
+
+  const addresses = [
+    ...(hasAddressContent(company?.registeredAddress)
+      ? [{ type: "registered", ...company.registeredAddress }]
+      : []),
+    ...(hasAddressContent(company?.businessAddress)
+      ? [{ type: "business", ...company.businessAddress }]
+      : []),
+    ...firstArray(primary?.addresses, data?.addresses, company?.addresses),
+  ];
 
   return {
     kind: "advanced-search",
-    status: Boolean(raw?.status ?? true),
+    status: Boolean(root?.status ?? true),
     transactionId: firstNonEmpty(
+      primary?.transactionId,
       data?.transactionId,
-      raw?.transactionId,
+      root?.transactionId,
       company?.transactionId
     ),
     companyId: firstNonEmpty(
+      primary?.companyId,
       company?.companyId,
       company?.id,
       data?.companyId,
-      raw?.companyId
+      root?.companyId
     ),
     companySummary: {
-      companyId: firstNonEmpty(company?.companyId, company?.id, data?.companyId),
-      name: firstNonEmpty(company?.name, company?.companyName),
-      country: firstNonEmpty(company?.country, company?.countryName),
-      countryCode: firstNonEmpty(company?.countryCode, company?.countryIso2),
+      companyId: firstNonEmpty(
+        primary?.companyId,
+        company?.companyId,
+        company?.id,
+        data?.companyId
+      ),
+      name: firstNonEmpty(
+        company?.legalName,
+        company?.name,
+        company?.companyName
+      ),
+      country: firstNonEmpty(company?.countryName, company?.country),
+      countryCode: firstNonEmpty(
+        company?.countryCode,
+        company?.countryIso2,
+        company?.country
+      ),
       registrationNumber: firstNonEmpty(
         company?.registrationNumber,
         company?.companyNumber,
-        company?.registrationNo
+        company?.registrationNo,
+        pickRegistrationNumber(company?.identifiers)
       ),
       status: firstNonEmpty(company?.status, company?.companyStatus),
-      legalForm: firstNonEmpty(company?.legalForm, company?.type),
+      legalForm: firstNonEmpty(
+        company?.legalForm,
+        company?.type,
+        company?.companyType?.native?.value,
+        company?.companyType?.modeled?.value
+      ),
       incorporatedOn: firstNonEmpty(
         company?.incorporatedOn,
         company?.incorporationDate,
+        company?.registrationDate,
         company?.foundingDate
       ),
       website: firstNonEmpty(company?.website, company?.url),
     },
-    officers: firstArray(data?.officers, company?.officers),
-    addresses: firstArray(data?.addresses, company?.addresses),
-    ownerships: firstArray(data?.ownerships, company?.ownerships),
-    transparency: firstNonEmpty(data?.transparency, company?.transparency),
-    documents: firstArray(data?.documents, company?.documents),
-    financials: firstArray(data?.financials, company?.financials),
+    officers: firstArray(primary?.officers, data?.officers, company?.officers),
+    addresses,
+    ownerships: firstArray(
+      primary?.ownerships,
+      data?.ownerships,
+      company?.ownerships,
+      company?.ownership,
+      company?.relationships?.ultimateBeneficialOwners,
+      company?.relationships?.familyTree
+    ),
+    transparency: firstNonEmpty(
+      primary?.transparency,
+      data?.transparency,
+      company?.transparency,
+      company?.relationships?.transparencyRegister
+    ),
+    documents: firstArray(
+      primary?.documents,
+      data?.documents,
+      company?.documents,
+      company?.resources
+    ),
+    financials: firstArray(
+      primary?.financials,
+      data?.financials,
+      company?.financials
+    ),
     raw,
   };
 }
 
 export function mapKybTxnResponse(providerBody: any): KybResponse {
   const data = providerBody?.data ?? providerBody ?? {};
+
+  if (Array.isArray(data)) {
+    const firstItem = data[0];
+    return firstItem?.company
+      ? mapKybAdvancedResponse(providerBody)
+      : mapKybSearchResponse(providerBody);
+  }
 
   const looksLikeSearch =
     Array.isArray(data?.companies) ||
